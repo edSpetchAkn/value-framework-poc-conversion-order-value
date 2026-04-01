@@ -1,0 +1,9 @@
+{
+  "extension_identifier": "value_framework_poc",
+  "label": {
+    "en_US": "Value Framework — Conversion & Order Value"
+  },
+  "position": "pim.activity.navigation.tab",
+  "file": "value-framework-poc.js",
+  "configuration": {}
+}
