@@ -205,7 +205,7 @@ export function renderDashboard(container, {
   Object.assign(breadcrumb.style, {
     fontSize: '11px',
     fontWeight: '700',
-    color: '#f5a623',
+    color: '#9452ba',
     letterSpacing: '0.3px',
     textTransform: 'uppercase',
     marginBottom: '10px',
