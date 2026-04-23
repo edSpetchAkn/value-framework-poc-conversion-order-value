@@ -5,5 +5,8 @@
   },
   "position": "pim.activity.navigation.tab",
   "file": "value-framework-poc.js",
-  "configuration": {}
+  "configuration": {},
+  "custom_variables": {
+    "enabled_metrics": "completeness,categorised,structuredTypes,hasParent,hasAssociation,hasAssetCollection"
+  }
 }

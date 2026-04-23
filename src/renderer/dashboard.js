@@ -166,11 +166,15 @@ export function renderDashboard(container, {
   hasParentResult,
   hasAssociationResult,
   hasAssetCollectionResult,
+  enabledKeys,
   productCount,
   attributeCount,
   timings,
   config,
 }) {
+  // Default: all metrics enabled (if enabledKeys not provided)
+  const ALL_KEYS = ['completeness', 'categorised', 'structuredTypes', 'hasParent', 'hasAssociation', 'hasAssetCollection'];
+  const enabled = enabledKeys ?? new Set(ALL_KEYS);
   ensureGlobalStyles();
   container.innerHTML = '';
 
@@ -249,24 +253,34 @@ export function renderDashboard(container, {
   wrapper.appendChild(header);
 
   // ── Section 1: Completeness at 100% by channel ──
-  const completenessCards = completenessResults.map((r) =>
-    renderMetricCard(r, 'completeness', config, `Channel: ${r.channelCode}`)
-  );
-  wrapper.appendChild(renderSection('Completeness at 100% \u2014 by channel', completenessCards));
+  if (enabled.has('completeness')) {
+    const completenessCards = completenessResults.map((r) =>
+      renderMetricCard(r, 'completeness', config, `Channel: ${r.channelCode}`)
+    );
+    wrapper.appendChild(renderSection('Completeness at 100% \u2014 by channel', completenessCards));
+  }
 
   // ── Section 2: Product structure ──
-  const productStructureCards = [
-    renderMetricCard(categorisedResult,     'categorised',     config),
-    renderMetricCard(hasParentResult,       'hasParent',       config),
-    renderMetricCard(hasAssociationResult,  'hasAssociation',  config),
-    renderMetricCard(hasAssetCollectionResult, 'hasAssetCollection', config),
-  ];
-  wrapper.appendChild(renderSection('Product structure', productStructureCards));
+  const productStructureMap = {
+    categorised:        categorisedResult,
+    hasParent:          hasParentResult,
+    hasAssociation:     hasAssociationResult,
+    hasAssetCollection: hasAssetCollectionResult,
+  };
+  const productStructureCards = Object.entries(productStructureMap)
+    .filter(([k]) => enabled.has(k))
+    .map(([k, r]) => renderMetricCard(r, k, config));
+
+  if (productStructureCards.length > 0) {
+    wrapper.appendChild(renderSection('Product structure', productStructureCards));
+  }
 
   // ── Section 3: Catalogue structure ──
-  wrapper.appendChild(renderSection('Catalogue structure', [
-    renderMetricCard(structuredTypesResult, 'structuredTypes', config),
-  ]));
+  if (enabled.has('structuredTypes')) {
+    wrapper.appendChild(renderSection('Catalogue structure', [
+      renderMetricCard(structuredTypesResult, 'structuredTypes', config),
+    ]));
+  }
 
   // ── Debug panel ──
   if (config.debugMode) {
