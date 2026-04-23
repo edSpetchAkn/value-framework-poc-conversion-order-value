@@ -6,12 +6,13 @@
  * rather than free-form text or media.
  *
  * Structured types (from CONFIG.STRUCTURED_ATTRIBUTE_TYPES):
- *   pim_catalog_identifier, pim_catalog_number, pim_catalog_boolean,
- *   pim_catalog_metric, pim_catalog_simpleselect, pim_catalog_multiselect,
- *   pim_catalog_price_collection, pim_catalog_date
+ *   pim_catalog_date, pim_catalog_identifier, pim_catalog_metric,
+ *   pim_catalog_multiselect, pim_catalog_number, pim_catalog_price_collection,
+ *   akeneo_reference_entity, akeneo_reference_entity_collection,
+ *   pim_catalog_simpleselect, pim_catalog_table, pim_catalog_boolean
  *
  * Unstructured (not counted): text, textarea, image, file, asset_collection,
- *   reference_entity, table, and any other types not in the above set.
+ *   and any other types not in the above set.
  *
  * The denominator is the TOTAL attribute count — not just product attributes.
  * This includes attributes used by product models, reference entities, etc.
@@ -42,6 +43,7 @@ export function calculate(context: MetricContext): MetricResult {
       denominator: 0,
       percentage: null,
       label: 'Attributes that are structured types',
+      metricKey: 'structuredTypes' as const,
       caveat: 'No attributes were returned. Check that the PIM API is accessible and the attribute list endpoint is responding.',
       debugInfo,
     };
@@ -81,7 +83,8 @@ export function calculate(context: MetricContext): MetricResult {
     denominator,
     percentage,
     label: 'Attributes that are structured types',
-    caveat: `Structured types counted: identifier, number, boolean, metric, simpleselect, multiselect, price, date. Based on ${denominator} total attributes.`,
+    metricKey: 'structuredTypes' as const,
+    caveat: `Structured types counted: date, identifier, measurement, multi-select, number, price, reference entity single link, reference entity multiple links, simple select, table, yes/no. Based on ${denominator} total attributes.`,
     debugInfo,
   };
 }

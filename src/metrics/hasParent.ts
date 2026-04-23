@@ -34,6 +34,7 @@ export function calculate(context: MetricContext): MetricResult {
       denominator: 0,
       percentage: null,
       label: 'Products with a Product Model parent',
+      metricKey: 'hasParent' as const,
       caveat: 'No products were found in the sample window.',
       debugInfo,
     };
@@ -63,6 +64,7 @@ export function calculate(context: MetricContext): MetricResult {
     denominator,
     percentage,
     label: 'Products with a Product Model parent',
+    metricKey: 'hasParent' as const,
     caveat: `Based on ${denominator} products (first ${config.MAX_PRODUCT_PAGES * config.PRODUCTS_PAGE_SIZE} by API order).`,
     debugInfo,
   };

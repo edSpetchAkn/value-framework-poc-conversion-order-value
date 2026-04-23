@@ -26,6 +26,7 @@ function toMetricResult(result: CompletenessChannelResult): MetricResult {
     denominator: result.denominator,
     percentage: result.percentage,
     label: `Completeness at 100% — ${result.channelCode}`,
+    metricKey: 'completeness',
     caveat: result.caveat,
     debugInfo: result.debugInfo,
   };

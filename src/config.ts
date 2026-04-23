@@ -53,23 +53,27 @@ export const CONFIG = {
    * Akeneo attribute type codes considered "structured".
    * Structured = machine-readable, constrained values (not free text or media).
    *
-   * Included: identifier, number, boolean, metric, simpleselect, multiselect,
-   *           price, date.
-   * Excluded: text, textarea, image, file, asset_collection, reference_entity,
-   *           table (free-form or media types).
+   * Included: date, identifier, measurement, multi-select, number, price,
+   *           reference entity single link, reference entity multiple links,
+   *           simple select, table, yes/no (boolean).
+   * Excluded: text, textarea, image, file, asset_collection, and any other
+   *           types not in the above set.
    *
    * This list is a PIM platform constant — do not change unless Akeneo
    * renames these type codes.
    */
   STRUCTURED_ATTRIBUTE_TYPES: new Set([
-    'pim_catalog_identifier',
-    'pim_catalog_number',
-    'pim_catalog_boolean',
-    'pim_catalog_metric',
-    'pim_catalog_simpleselect',
-    'pim_catalog_multiselect',
-    'pim_catalog_price_collection',
     'pim_catalog_date',
+    'pim_catalog_identifier',
+    'pim_catalog_metric',
+    'pim_catalog_multiselect',
+    'pim_catalog_number',
+    'pim_catalog_price_collection',
+    'akeneo_reference_entity',
+    'akeneo_reference_entity_collection',
+    'pim_catalog_simpleselect',
+    'pim_catalog_table',
+    'pim_catalog_boolean',
   ]),
 
   /**

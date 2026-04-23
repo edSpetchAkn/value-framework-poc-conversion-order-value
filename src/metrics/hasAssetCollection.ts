@@ -38,6 +38,7 @@ export function calculate(context: MetricContext): MetricResult {
       denominator: 0,
       percentage: null,
       label: 'Products with an asset collection populated',
+      metricKey: 'hasAssetCollection' as const,
       caveat: 'No products were found in the sample window.',
       debugInfo,
     };
@@ -67,6 +68,7 @@ export function calculate(context: MetricContext): MetricResult {
       denominator,
       percentage: null,
       label: 'Products with an asset collection populated',
+      metricKey: 'hasAssetCollection' as const,
       caveat: 'No asset collection attributes (pim_catalog_asset_collection) were found in this catalog.',
       debugInfo,
     };
@@ -114,6 +116,7 @@ export function calculate(context: MetricContext): MetricResult {
     denominator,
     percentage,
     label: 'Products with an asset collection populated',
+    metricKey: 'hasAssetCollection' as const,
     caveat: `Checks ${assetCollectionCodes.size} asset collection attribute(s) discovered dynamically. Based on ${denominator} products (first ${config.MAX_PRODUCT_PAGES * config.PRODUCTS_PAGE_SIZE} by API order).`,
     debugInfo,
   };

@@ -6,6 +6,7 @@
  */
 
 import type { CONFIG } from './config';
+import type { MetricKey } from './thresholds';
 
 // ─── Metric result shapes ─────────────────────────────────────────────────────
 
@@ -37,6 +38,11 @@ export interface MetricResult {
   percentage: number | null;
   /** Short display label for the metric (e.g. "Products categorised"). */
   label: string;
+  /**
+   * Key used to look up threshold bands and value statements from
+   * METRIC_THRESHOLDS. Optional — cards without a key use legacy behaviour.
+   */
+  metricKey?: MetricKey;
   /**
    * Human-readable explanation of why percentage is null, or a note about
    * sampling limitations when the result may not be fully representative.
