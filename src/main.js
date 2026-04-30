@@ -5,15 +5,14 @@
  * Position: pim.activity.navigation.tab
  *
  * Orchestration:
- *   1. Wait for window.PIM (polling with exponential backoff)
- *   2. Fetch product sample + full attribute list in parallel
- *   3. Calculate all 6 metrics (isolated — one failure won't block others)
- *   4. Render the dashboard
+ *   Phase 1 — fetch attributes + product families in parallel, render shell with dropdown
+ *   Phase 2 — fetch all products for the selected family, calculate all metrics, render
+ *             Re-runs on every family change.
  */
 
 import { CONFIG } from './config.js';
 import { debugLog, debugError, debugTime, debugTimeEnd } from './utils/logger.js';
-import { fetchProductSample } from './data/fetchProductSample.js';
+import { fetchProductsByFamily } from './data/fetchProductSample.js';
 import { fetchAttributeList } from './data/fetchAttributeList.js';
 import { calculate as calculateCompleteness }     from './metrics/completeness.js';
 import { calculate as calculateCategorised }      from './metrics/categorised.js';
@@ -21,16 +20,20 @@ import { calculate as calculateStructuredTypes }  from './metrics/structuredType
 import { calculate as calculateHasParent }        from './metrics/hasParent.js';
 import { calculate as calculateHasAssociation }   from './metrics/hasAssociation.js';
 import { calculate as calculateHasAssetCollection } from './metrics/hasAssetCollection.js';
-import { renderDashboard, renderLoading, renderError } from './renderer/dashboard.js';
+import {
+  renderLoading,
+  renderError,
+  renderShell,
+  renderMetricsLoading,
+  renderMetrics,
+  renderMetricsError,
+} from './renderer/dashboard.js';
 
 // ── SDK Waiter ────────────────────────────────────────────────────────────────
 
 function waitForPim(timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
-    if (window.PIM) {
-      resolve(window.PIM);
-      return;
-    }
+    if (window.PIM) { resolve(window.PIM); return; }
 
     const startTime = Date.now();
     let interval = 100;
@@ -42,12 +45,10 @@ function waitForPim(timeoutMs = 10_000) {
         return;
       }
       if (Date.now() - startTime >= timeoutMs) {
-        reject(
-          new Error(
-            `PIM SDK (window.PIM) was not available after ${timeoutMs / 1000}s. ` +
-            'Ensure this script is loaded within an Akeneo Custom Component context.'
-          )
-        );
+        reject(new Error(
+          `PIM SDK (window.PIM) was not available after ${timeoutMs / 1000}s. ` +
+          'Ensure this script is loaded within an Akeneo Custom Component context.'
+        ));
         return;
       }
       interval = Math.min(interval * 1.5, 500);
@@ -56,6 +57,26 @@ function waitForPim(timeoutMs = 10_000) {
 
     setTimeout(poll, interval);
   });
+}
+
+// ── Schema Fetching ───────────────────────────────────────────────────────────
+
+async function fetchAllFamilies() {
+  debugTime('fetchFamilies');
+  const all = [];
+  let page = 1;
+
+  while (true) {
+    const response = await globalThis.PIM.api.family_v1.list({ page, limit: 100 });
+    const items = response.items ?? [];
+    all.push(...items);
+    debugLog('fetchFamilies', `Page ${page}: ${items.length} families (total: ${all.length})`);
+    if (items.length === 0 || !response.links?.next) break;
+    page++;
+  }
+
+  debugTimeEnd('fetchFamilies');
+  return all;
 }
 
 // ── Metric Visibility ─────────────────────────────────────────────────────────
@@ -90,50 +111,46 @@ function safeCalculate(fn, context, metricKey) {
       denominator: 0,
       percentage: null,
       label: CONFIG.metrics[metricKey]?.label ?? metricKey,
-      caveat: `Calculation error \u2014 see console for details.`,
+      caveat: 'Calculation error — see console for details.',
       debugInfo: { error: err.message },
     };
   }
 }
 
-// ── Main Orchestration ────────────────────────────────────────────────────────
+// ── Phase 2: Fetch products + calculate + render ──────────────────────────────
 
-async function run(container) {
-  renderLoading(container);
+async function runMetrics(metricsArea, { attributes, families, familyCode }) {
+  renderMetricsLoading(metricsArea);
+
+  const userLocale = globalThis.PIM.context?.user?.catalog_locale ?? 'en_US';
+  const family = families.find(f => f.code === familyCode);
+  const familyLabel = familyCode === '__none__'
+    ? 'No family'
+    : (family?.labels?.[userLocale] ?? family?.labels?.['en_US'] ?? familyCode);
 
   const timings = {};
   const t0 = Date.now();
 
-  // ── Phase 1: Fetch products + attributes in parallel ──
-  let products, attributes;
+  let products;
   try {
-    debugTime('fetchAll');
     const t1 = Date.now();
-    [products, attributes] = await Promise.all([
-      fetchProductSample(),
-      fetchAttributeList(),
-    ]);
+    debugTime('fetchProducts');
+    products = await fetchProductsByFamily(familyCode);
+    debugTimeEnd('fetchProducts');
     timings.fetch = Date.now() - t1;
-    debugTimeEnd('fetchAll');
   } catch (err) {
-    debugError('main.fetch', err);
-    renderError(container, `Failed to load data from PIM: ${err.message}`);
+    debugError('runMetrics.fetch', err);
+    renderMetricsError(metricsArea, err.message);
     return;
   }
 
-  if (products.length === 0) {
-    renderError(container, 'No products found in this PIM instance. Cannot calculate metrics.');
-    return;
-  }
-
-  debugLog('main', {
-    productsFetched: products.length,
-    attributesFetched: attributes.length,
-  });
+  debugLog('runMetrics', { familyCode, productsFetched: products.length });
 
   const context = { products, attributes, config: CONFIG };
 
-  // ── Phase 2: Calculate all metrics ──
+  const ALL_KEYS = ['completeness', 'categorised', 'structuredTypes', 'hasParent', 'hasAssociation', 'hasAssetCollection'];
+  const enabledKeys = getEnabledMetrics(ALL_KEYS);
+
   const t2 = Date.now();
 
   let completenessResults;
@@ -151,20 +168,16 @@ async function run(container) {
     }];
   }
 
-  const categorisedResult      = safeCalculate(calculateCategorised,       context, 'categorised');
-  const structuredTypesResult  = safeCalculate(calculateStructuredTypes,   context, 'structuredTypes');
-  const hasParentResult        = safeCalculate(calculateHasParent,         context, 'hasParent');
-  const hasAssociationResult   = safeCalculate(calculateHasAssociation,    context, 'hasAssociation');
+  const categorisedResult        = safeCalculate(calculateCategorised,        context, 'categorised');
+  const structuredTypesResult    = safeCalculate(calculateStructuredTypes,    context, 'structuredTypes');
+  const hasParentResult          = safeCalculate(calculateHasParent,          context, 'hasParent');
+  const hasAssociationResult     = safeCalculate(calculateHasAssociation,     context, 'hasAssociation');
   const hasAssetCollectionResult = safeCalculate(calculateHasAssetCollection, context, 'hasAssetCollection');
 
   timings.calculate = Date.now() - t2;
 
-  // ── Phase 3: Render ──
-  const ALL_KEYS = ['completeness', 'categorised', 'structuredTypes', 'hasParent', 'hasAssociation', 'hasAssetCollection'];
-  const enabledKeys = getEnabledMetrics(ALL_KEYS);
-
   const t3 = Date.now();
-  renderDashboard(container, {
+  renderMetrics(metricsArea, {
     completenessResults,
     categorisedResult,
     structuredTypesResult,
@@ -173,14 +186,50 @@ async function run(container) {
     hasAssetCollectionResult,
     enabledKeys,
     productCount: products.length,
+    familyLabel,
     attributeCount: attributes.length,
     timings,
     config: CONFIG,
   });
   timings.render = Date.now() - t3;
-  timings.total = Date.now() - t0;
+  timings.total  = Date.now() - t0;
 
-  debugLog('main.timings', timings);
+  debugLog('runMetrics.timings', { familyCode, ...timings });
+}
+
+// ── Phase 1: Fetch schema + render shell ──────────────────────────────────────
+
+async function run(container) {
+  renderLoading(container);
+
+  let attributes, families;
+  try {
+    debugTime('fetchSchema');
+    [attributes, families] = await Promise.all([
+      fetchAttributeList(),
+      fetchAllFamilies(),
+    ]);
+    debugTimeEnd('fetchSchema');
+  } catch (err) {
+    debugError('run.fetch', err);
+    renderError(container, `Failed to load data from PIM: ${err.message}`);
+    return;
+  }
+
+  debugLog('run', { attributesFetched: attributes.length, familiesFetched: families.length });
+
+  const userLocale = globalThis.PIM.context?.user?.catalog_locale ?? 'en_US';
+
+  const { metricsArea, defaultFamilyCode } = renderShell(container, {
+    families,
+    userLocale,
+    config: CONFIG,
+    onFamilyChange: (familyCode) => {
+      runMetrics(metricsArea, { attributes, families, familyCode });
+    },
+  });
+
+  await runMetrics(metricsArea, { attributes, families, familyCode: defaultFamilyCode });
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -196,7 +245,8 @@ async function init() {
     await run(container);
   } catch (err) {
     debugError('main.init', err);
-    renderError(container, err.message);
+    const c = document.getElementById('root');
+    if (c) renderError(c, err.message);
   }
 }
 
